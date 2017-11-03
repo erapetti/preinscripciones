@@ -124,10 +124,24 @@ sub load_alumnos {
 		my $ci = $_[18];
 
     if (defined($self->{derivados_a_ces}{$ci})) {
-      if ($opc2 && $opc2->consejo == 'Liceo') {
+
+      # El alumno Alexander Silveira fue derivado por CETP y no tiene opción deft
+      if ($ci eq '54332499') {
+        $deft = new opcion('DELTA EL TIGRE','Liceo','San José','1216614','1614');
+      }
+      # El alumno Alan Mora fue derivado por CETP y no tiene opción deft
+      if ($ci eq '56214689') {
+        $deft = new opcion('PLAYA PASCUAL','Liceo','San José','1216010','1610');
+      }
+      # El alumno Alexander González fue derivado por CETP y no tiene opción deft
+      if ($ci eq '56312122') {
+        $deft = new opcion('LIBERTAD','Liceo','San José','1216002','1602');
+      }
+
+      if ($opc2 && $opc2->consejo eq 'Liceo') {
         $opc1 = $opc2;
         $opc2 = undef;
-      } elsif ($opc3 && $opc3->consejo == 'Liceo') {
+      } elsif ($opc3 && $opc3->consejo eq 'Liceo') {
         $opc1 = $opc3;
         $opc3 = undef;
       } elsif ($deft) {
@@ -136,33 +150,42 @@ sub load_alumnos {
         print "ERROR: Alumno $ci fue derivado a CES pero no tiene opciones en CES\n";
         exit(1);
       }
-      $self->{clasificacion}{'derivados_a_ces'}++;
+      if ($opc2 && $opc2->consejo eq 'UTU') {
+        $opc2 = undef;
+      }
+      if ($opc3 && $opc3->consejo eq 'UTU') {
+        $opc3 = undef;
+      }
+      $self->{clasificacion}{'derivados a ces'}++;
       $self->{derivados_a_ces}{$ci}++; # lo marco como visto para controlar que los vi a todos
 
     } elsif (defined($self->{derivados_a_cetp}{$ci})) {
-        if ($opc2 && $opc2->consejo == 'UTU') {
+        if ($opc2 && $opc2->consejo eq 'UTU') {
           $opc1 = $opc2;
           $opc2 = undef;
-        } elsif ($opc3 && $opc3->consejo == 'UTU') {
+        } elsif ($opc3 && $opc3->consejo eq 'UTU') {
           $opc1 = $opc3;
           $opc3 = undef;
         } else {
           print "ERROR: Alumno $ci fue derivado a CETP pero no tiene opciones en CETP\n";
           exit(1);
         }
-        $self->{clasificacion}{'derivados_a_cetp'}++;
+        $self->{clasificacion}{'derivados a cetp'}++;
         $self->{derivados_a_cetp}{$ci}++; # lo marco como visto para controlar que los vi a todos
-
+        if ($::soloCES) {
+          next;
+        }
     } else {
+      if ($::soloCES) {
+        if (defined($opc1) && $opc1->consejo eq 'UTU') {
+          $self->{clasificacion}{'primera opción CETP'}++;
+          next;
+        }
+      }
       $self->{clasificacion}{'para distribuir'}++;
     }
 
 		if ($::soloCES) {
-      if (defined($opc1) && $opc1->consejo ne 'Liceo') {
-        $self->{clasificacion}{'para distribuir'}--;
-        $self->{clasificacion}{'primera opción CETP'}++;
-        next;
-      }
 			if (defined($opc2) && $opc2->consejo ne 'Liceo') {
 				$opc2 = undef;
 			}
@@ -183,7 +206,7 @@ sub load_alumnos {
 		# El liceo 1801 quedó en la oferta por error, ignoro esas opciones:
 		if (defined($opc1) && $opc1->dependid eq '1801') {
 			# Cintia Trindade y otros eligieron el liceo 1801 por error. Los cambio al 1807
-			$opc1 = new opcion('TACUAREMBO Nº 3','Liceo','Tacuarembó',1218007,1807);
+			$opc1 = new opcion('TACUAREMBO Nº 3','Liceo','Tacuarembó','1218007','1807');
 		}
 		if (defined($opc2) && $opc2->dependid eq '1801') {
 			$opc2 = undef;
@@ -223,6 +246,10 @@ sub load_alumnos {
 			print "ATENCIÓN: El alumno $ci no tiene definido el coeficiente de vulnerabilidad\n";
 			$self->{vulnerabilidad}{$ci} = 0;
 		}
+    if (defined($self->{alumnos}{$ci})) {
+      # si un alumno aparece más de una vez me quedo con el último y contabilizo para que cierre la clasificación
+      $self->{clasificacion}{'repetidos'}++;
+    }
     $self->{alumnos}{$ci} = [ $opc1, $opc2, $opc3, $deft, $vulnerabilidad ];
 	}
 	close(FILE);
@@ -248,7 +275,13 @@ sub verifico {
 		print "\t$_: $self->{clasificacion}{$_}\n";
     $tot += $self->{clasificacion}{$_};
 	}
-	print "Total de alumnos: $tot\n";
+	printf "Total de alumnos: %d\n",$tot - $self->{clasificacion}{repetidos};
+
+  my $para_distribuir = $self->{clasificacion}{'para distribuir'} + $self->{clasificacion}{'derivados a ces'} - $self->{clasificacion}{'repetidos'};
+  if ($para_distribuir != scalar($self->alumnos)) {
+    printf "ERROR: El total de la clasificación (%d) no cierra con el total de alumnos (%d)\n", $para_distribuir, scalar($self->alumnos);
+    exit(1);
+  }
 }
 
 sub alumnos {
