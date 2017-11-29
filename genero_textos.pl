@@ -62,6 +62,23 @@ close(DIRECCIONES);
 
 
 #############################
+## turnos de los liceos
+##
+
+my %turnos;
+open(GPT,"gpt_20171120.csv");
+while(<GPT>) {
+	next if (/^DEPENDID/);
+	chop();
+	@_ = split(',');
+
+	$_[3] =~ s/E//;
+
+	$turnos{$_[1]}{$_[3]} = 1;
+}
+close(GPT);
+
+#############################
 ## resultado de la distribución
 ##
 
@@ -83,51 +100,75 @@ while(<DIST>) {
 close(DIST);
 
 
+my %horarios;
 foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
 
 	if (!defined($cupos{$dependid}) || !defined($cupos{$dependid}{grupos})) {
 		print STDERR "ERROR: El liceo $dependid no tiene cupos\n";
 		exit(1);
 	}
-	print STDERR "$dependid: ".scalar(keys %{$alumnos{$dependid}})." grupos=".$cupos{$dependid}{grupos}." apg=".int(scalar(keys %{$alumnos{$dependid}})/$cupos{$dependid}{grupos})."\n";
+
+	my $alumnos = scalar(keys %{$alumnos{$dependid}});
+	print STDERR "$dependid: ".$alumnos." grupos=".$cupos{$dependid}{grupos}." apg=".int($alumnos/$cupos{$dependid}{grupos})."\n";
+
+	if (!defined($turnos{$dependid}{1})) {
+		print STDERR "$dependid no tiene turno 1\n";
+	}
+	if (!defined($turnos{$dependid}{2})) {
+		print STDERR "$dependid no tiene turno 2\n";
+	}
 
 	my $dia = 12;
-	my $hora = 13;
-	my $minuto = 45;
+	my $hora = defined($turnos{$dependid}{2}) ? 14 : 8;
+	my $minuto = 30;
 	my $puesto = 0;
+	my $segundapasada = 0;
+	$horarios{$dependid}{$dia}{desde} = sprintf "%02d:%02d",$hora,$minuto;
 	foreach my $cedula (keys $alumnos{$dependid}) {
 
+		(defined($horarios{$dependid}{$dia}{desde})) or $horarios{$dependid}{$dia}{desde} = sprintf "%02d:%02d",$hora,$minuto;
+		($horarios{$dependid}{$dia}{hasta} > sprintf "%02d:%02d",$hora,$minuto) or $horarios{$dependid}{$dia}{hasta} = sprintf "%02d:%02d",$hora,$minuto;
+		(defined($horarios{$dependid}{$dia}{frecuencia})) or $horarios{$dependid}{$dia}{frecuencia} = ($dia == 12 ? 2 : 3);
+		$horarios{$dependid}{$dia}{adicionales} = $segundapasada;
 		if ($dependid>1000 && $dependid<1100) {
 			# MONTEVIDEO
 			printf "%s,%sPara la inscripción 2018 debe ir al Liceo Nº %2d (%s) el %d de diciembre a las %02d:%02d llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$dependid%100,$direcciones{$dependid}{LugarDireccion},$dia,$hora,$minuto,'"';
 		} else {
 			# INTERIOR
-			printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,'"';
+			printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre en el turno de la %s llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,($hora<13 ? "mañana" : "tarde"),'"';
 		}
 
 		$puesto ++;
-		if ($puesto == 4 || ($puesto == 3 && scalar(keys %{$alumnos{$dependid}}) < 280) || ($puesto == 2 && $dia == 12)) {
+		if ($puesto == 3 || ($puesto == 2 && $dia == 12) || ($puesto == 1 && $segundapasada)) {
 			$puesto = 0;
 			$minuto += 15;
 			if ($minuto == 60) {
 				$minuto = 0;
-				$hora++;
+				$hora ++;
 				if ($hora == 12) {
-					$hora = 13;
-					$minuto = 45;
+					$hora = defined($turnos{$dependid}{2}) ? 14 : 8;
+					$dia += defined($turnos{$dependid}{2}) ? 0 : 1;
 				} elsif ($hora == 17) {
-					$hora = 8;
-					$dia++;
-					if ($dia == 16) {
-						print STDERR "ERROR: Se terminó el período de inscripción para $dependid y aún quedan alumnos\n";
-						exit (1);
-					}
+					$dia ++;
+					$hora = defined($turnos{$dependid}{1}) ? 8 : 14;
+				}
+				if ($dia == 16) {
+					$segundapasada ++;
+					$dia = 13;
+					print STDERR "Activo segunda pasada para $dependid\n";
 				}
 			}
 		}
 	}
 }
 
+foreach my $dependid (sort {$a <=> $b} keys %horarios) {
+	foreach my $dia (sort {$a <=> $b} keys %{$horarios{$dependid}}) {
+		printf STDERR "%d\t%s\t%s",$dependid,$direcciones{$dependid}{DeptoNombre},$direcciones{$dependid}{DependDesc};
+		printf STDERR "\t%s","$dia/12 desde $horarios{$dependid}{$dia}{desde} hasta $horarios{$dependid}{$dia}{hasta} con ".($horarios{$dependid}{$dia}{frecuencia}+$horarios{$dependid}{$dia}{adicionales})." alumnos cada 15 minutos";
+		print STDERR "\n";
+	}
+}
 exit(0);
 
 ######################################################################
