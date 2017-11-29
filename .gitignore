@@ -2,8 +2,11 @@
 *.old2
 *.txt
 *.csv
-viejo
+viejo/
 *.pl.*
 *.csv.*
 *.txt.*
 *.sh
+*.ods
+v2/
+viejo2/
