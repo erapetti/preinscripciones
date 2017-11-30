@@ -99,6 +99,28 @@ while(<DIST>) {
 }
 close(DIST);
 
+# planes: día turno/alt frecuencia horario
+my @planes = (
+	{ dia => 12, 2 => {desde => '14:00', hasta => '17:45', frecuencia=>2},
+	           alt => {desde => '10:00', hasta => '11:45', frecuencia=>2} },
+	{ dia => 13, 1 => {desde => '08:00', hasta => '11:45', frecuencia=>3},
+	             2 => {desde => '14:00', hasta => '17:45', frecuencia=>3} },
+	{ dia => 14, 2 => {desde => '16:00', hasta => '17:45', frecuencia=>3},
+	           alt => {desde => '10:00', hasta => '11:45', frecuencia=>3} },
+	{ dia => 15, 2 => {desde => '16:00', hasta => '17:45', frecuencia=>3},
+	           alt => {desde => '10:00', hasta => '11:45', frecuencia=>3} },
+	{ dia => 18, 2 => {desde => '16:00', hasta => '17:45', frecuencia=>3},
+	           alt => {desde => '10:00', hasta => '11:45', frecuencia=>3} },
+	{ dia => 19, 2 => {desde => '16:00', hasta => '17:45', frecuencia=>3},
+	           alt => {desde => '10:00', hasta => '11:45', frecuencia=>3} },
+	{ dia => 20, 1 => {desde => '08:00', hasta => '11:45', frecuencia=>3},
+	             2 => {desde => '14:00', hasta => '17:45', frecuencia=>3} },
+	{ dia => 21, 1 => {desde => '08:00', hasta => '11:45', frecuencia=>3},
+	             2 => {desde => '14:00', hasta => '17:45', frecuencia=>3} },
+	{ dia => 22, 1 => {desde => '08:00', hasta => '11:45', frecuencia=>3},
+	             2 => {desde => '14:00', hasta => '17:45', frecuencia=>3} },
+);
+
 
 my %horarios;
 foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
@@ -118,44 +140,53 @@ foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
 		print STDERR "$dependid no tiene turno 2\n";
 	}
 
-	my $dia = 12;
-	my $hora = defined($turnos{$dependid}{2}) ? 14 : 8;
-	my $minuto = 30;
-	my $puesto = 0;
-	my $segundapasada = 0;
-	$horarios{$dependid}{$dia}{desde} = sprintf "%02d:%02d",$hora,$minuto;
-	foreach my $cedula (keys $alumnos{$dependid}) {
+	my @alumnos = keys $alumnos{$dependid};
 
-		(defined($horarios{$dependid}{$dia}{desde})) or $horarios{$dependid}{$dia}{desde} = sprintf "%02d:%02d",$hora,$minuto;
-		($horarios{$dependid}{$dia}{hasta} > sprintf "%02d:%02d",$hora,$minuto) or $horarios{$dependid}{$dia}{hasta} = sprintf "%02d:%02d",$hora,$minuto;
-		(defined($horarios{$dependid}{$dia}{frecuencia})) or $horarios{$dependid}{$dia}{frecuencia} = ($dia == 12 ? 2 : 3);
-		$horarios{$dependid}{$dia}{adicionales} = $segundapasada;
-		if ($dependid>1000 && $dependid<1100) {
-			# MONTEVIDEO
-			printf "%s,%sPara la inscripción 2018 debe ir al Liceo Nº %2d (%s) el %d de diciembre a las %02d:%02d llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$dependid%100,$direcciones{$dependid}{LugarDireccion},$dia,$hora,$minuto,'"';
-		} else {
-			# INTERIOR
-			printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre en el turno de la %s llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,($hora<13 ? "mañana" : "tarde"),'"';
-		}
+	for my $plan (@planes) {
+		last if ($#alumnos < 0);
 
-		$puesto ++;
-		if ($puesto == 3 || ($puesto == 2 && $dia == 12) || ($puesto == 1 && $segundapasada)) {
-			$puesto = 0;
-			$minuto += 15;
-			if ($minuto == 60) {
-				$minuto = 0;
-				$hora ++;
-				if ($hora == 12) {
-					$hora = defined($turnos{$dependid}{2}) ? 14 : 8;
-					$dia += defined($turnos{$dependid}{2}) ? 0 : 1;
-				} elsif ($hora == 17) {
-					$dia ++;
-					$hora = defined($turnos{$dependid}{1}) ? 8 : 14;
+		my $dia = $plan->{dia};
+		my $encontre_turno = 0;
+
+		foreach my $turnobase (1,2,'alt') {
+			my $turno = $turnobase;
+			last if ($#alumnos < 0);
+			next if (!defined($plan->{$turno}));
+			next if (!defined($turnos{$dependid}{$turno}) && !(!$encontre_turno && $turno eq 'alt'));
+
+			$encontre_turno = defined($turnos{$dependid}{$turno});
+
+			$plan->{$turno}{desde} =~ /(\d\d):(\d\d)/;
+			my $hora = $1;
+			my $minuto = $2;
+			my $puesto = 1;
+			(defined($horarios{$dependid}{$dia}{desde})) or $horarios{$dependid}{$dia}{desde} = sprintf "%02d:%02d",$hora,$minuto;
+			$horarios{$dependid}{$dia}{$turno}{frecuencia} += $plan->{$turno}{frecuencia};
+
+			while (my $cedula = shift @alumnos) {
+
+				($horarios{$dependid}{$dia}{hasta} > sprintf "%02d:%02d",$hora,$minuto) or $horarios{$dependid}{$dia}{hasta} = sprintf "%02d:%02d",$hora,$minuto;
+
+				if ($dependid>1000 && $dependid<1100) {
+					# MONTEVIDEO
+					printf "%s,%sPara la inscripción 2018 debe ir al Liceo Nº %2d (%s) el %d de diciembre a las %02d:%02d llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$dependid%100,$direcciones{$dependid}{LugarDireccion},$dia,$hora,$minuto,'"';
+				} elsif ($dependid>200 && $dependid<300 || $dependid>900 && $dependid<1000) {
+					# CANELONES Y MALDONADO
+					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre en el turno de la %s llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,($hora<13 ? "mañana" : "tarde"),'"';
+				} else {
+					# INTERIOR
+					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},'"';
 				}
-				if ($dia == 16) {
-					$segundapasada ++;
-					$dia = 13;
-					print STDERR "Activo segunda pasada para $dependid\n";
+
+				$puesto ++;
+				if ($puesto > $plan->{$turno}{frecuencia}) {
+					$puesto = 1;
+					$minuto += 15;
+					if ($minuto == 60) {
+						$minuto = 0;
+						$hora ++;
+					}
+					last if ($plan->{$turno}{hasta} lt sprintf "%02d:%02d",$hora,$minuto);
 				}
 			}
 		}
@@ -165,7 +196,7 @@ foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
 foreach my $dependid (sort {$a <=> $b} keys %horarios) {
 	foreach my $dia (sort {$a <=> $b} keys %{$horarios{$dependid}}) {
 		printf STDERR "%d\t%s\t%s",$dependid,$direcciones{$dependid}{DeptoNombre},$direcciones{$dependid}{DependDesc};
-		printf STDERR "\t%s","$dia/12 desde $horarios{$dependid}{$dia}{desde} hasta $horarios{$dependid}{$dia}{hasta} con ".($horarios{$dependid}{$dia}{frecuencia}+$horarios{$dependid}{$dia}{adicionales})." alumnos cada 15 minutos";
+		printf STDERR "\t%s","$dia/12 desde $horarios{$dependid}{$dia}{desde} hasta $horarios{$dependid}{$dia}{hasta} con ".max(max($horarios{$dependid}{$dia}{1}{frecuencia},$horarios{$dependid}{$dia}{2}{frecuencia}),$horarios{$dependid}{$dia}{alt}{frecuencia})." alumnos cada 15 minutos";
 		print STDERR "\n";
 	}
 }
@@ -181,4 +212,8 @@ sub trim($) {
 	$texto =~ s/ +$//;
 
 	return $texto;
+}
+
+sub max($$) {
+	return ($_[0] >= $_[1] ? $_[0] : $_[1]);
 }
