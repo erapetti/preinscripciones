@@ -78,6 +78,14 @@ while(<GPT>) {
 }
 close(GPT);
 
+my @orden;
+open(ORDEN,"orden.txt");
+while(<ORDEN>) {
+	chop();
+	push @orden, $_;
+}
+close(ORDEN);
+
 #############################
 ## resultado de la distribución
 ##
@@ -140,7 +148,11 @@ foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
 		print STDERR "$dependid no tiene turno 2\n";
 	}
 
-	my @alumnos = keys $alumnos{$dependid};
+	# Recorro los alumnos en el mismo orden que la corrida del 20171129
+	my @alumnos;
+	for $_ (@orden) {
+		defined($alumnos{$dependid}{$_}) and push @alumnos, $_;
+	}
 
 	for my $plan (@planes) {
 		last if ($#alumnos < 0);
@@ -172,7 +184,8 @@ foreach my $dependid (sort {$a <=> $b} keys %alumnos) {
 					printf "%s,%sPara la inscripción 2018 debe ir al Liceo Nº %2d (%s) el %d de diciembre a las %02d:%02d llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$dependid%100,$direcciones{$dependid}{LugarDireccion},$dia,$hora,$minuto,'"';
 				} elsif ($dependid>200 && $dependid<300 || $dependid>900 && $dependid<1000) {
 					# CANELONES Y MALDONADO
-					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre en el turno de la %s llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,($hora<13 ? "mañana" : "tarde"),'"';
+					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre a las %02d:%02d llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,$hora,$minuto,'"';
+#					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) el %d de diciembre en el turno de la %s llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},$dia,($hora<13 ? "mañana" : "tarde"),'"';
 				} else {
 					# INTERIOR
 					printf "%s,%sPara la inscripción 2018 debe ir al Liceo de %s (%s) llevando:\n- Cédula de Identidad y Carné de Salud Adolescente del alumno\n- Cédula del adulto responsable de la inscripción\n\nConsejo de Educación Secundaria%s\n",$cedula,'"',$direcciones{$dependid}{DependDesc},$direcciones{$dependid}{LugarDireccion},'"';
