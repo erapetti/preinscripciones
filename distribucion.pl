@@ -46,8 +46,8 @@ $centros->load_depto("depto.csv");
 my $alumnos = new alumnos;
 $alumnos->load_derivados_a_ces("derivados_a_ces.csv");
 $alumnos->load_derivados_a_cetp("derivados_a_cetp.csv");
-$alumnos->load_vulnerabilidad("vulnerabilidad.csv");
-$alumnos->load_alumnos("preins2018v3.csv");
+#$alumnos->load_vulnerabilidad("vulnerabilidad.csv");
+$alumnos->load_alumnos("preins2019v2.csv");
 $alumnos->load_alumnos("especiales.csv");
 $alumnos->verifico();
 
@@ -141,8 +141,9 @@ sub ordenamiento($$$$$) {
 		exit(1);
 	}
 	if (!defined($centros->grupos($dependid_opc)) || $centros->grupos($dependid_opc)==0) {
-		print "ERROR:ordenamiento: centro $dependid_opc no tiene cantidad de grupos\n";
-		exit(1);
+		# Este liceo no tiene grupos habilitados
+		# print "ATENCIÓN:ordenamiento: centro $dependid_opc no tiene cantidad de grupos y fue elegido por $ci\n";
+		return 0;
 	}
 	my $apg_opc = (keys %{$centros->alumnos($dependid_opc)}) / $centros->grupos($dependid_opc);
 	$puntaje = ($apg_opc - $centros->apg($dependid_opc)) ** 2; # distancia del apg máximo * 1000
@@ -275,7 +276,7 @@ sub descripcion_distribucion($$$) {
 	print "Totales de la distribución:\n";
 	printf "\tGrupos:  %d\n", reduce {$a+$b} map {$centros->grupos($_)} $centros->centros;
 	printf "\tCupos:   %d\n", reduce {$a+$b} map {$centros->cupos($_)} $centros->centros;
-	printf "\tAlumnos: %d\n", reduce {$a+$b} map {scalar(keys $centros->alumnos($_))} $centros->centros;
+	printf "\tAlumnos: %d\n", reduce {$a+$b} map {scalar(keys %{$centros->alumnos($_)})} $centros->centros;
 	printf "\tReserva: %d\n", reduce {$a+$b} map {$centros->reserva($_)} $centros->centros;
 	printf "\tSaldo:   %d\n", reduce {$a+$b} map {$centros->libres($_)} $centros->centros;
 	print "\n\n";

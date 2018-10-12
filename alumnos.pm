@@ -62,7 +62,7 @@ sub load_vulnerabilidad {
     next if (/^#/);
 		s/"//g;
 		chop();
-		@_ = split(',');
+		@_ = split('\t');
 
 		$self->{vulnerabilidad}{$_[0]} = $_[12];
 	}
@@ -76,10 +76,10 @@ sub load_alumnos {
 	my %clasificacion;
 	my $total_alumnos = 0;
 
-  if (!defined($self->{vulnerabilidad})) {
-      print "ERROR: No están cargados los puntajes de vulnerabilidad de los alumnos\n";
-      exit(1);
-  }
+  #if (!defined($self->{vulnerabilidad})) {
+  #    print "ERROR: No están cargados los puntajes de vulnerabilidad de los alumnos\n";
+  #    exit(1);
+  #}
   if (!defined($self->{derivados_a_ces})) {
       print "ERROR: No están cargados los alumnos derivados de CETP a CES\n";
       exit(1);
@@ -105,38 +105,38 @@ sub load_alumnos {
 		chop();
 		@_ = split('\t');
 
-		if ($_[23] ne "Si") {
+		if ($_[26] ne "Si") {
 			# no preinscribió
 			$self->{clasificacion}{'no preinscribió'}++;
 			next;
 		}
 
-		my $opc1 = new opcion($_[32], $_[33], $_[34], $_[35], $_[36], $_[37], $_[38], $_[39]);
+		my $opc1 = new opcion($_[35], $_[36], $_[37], $_[38], $_[39], $_[40], $_[41], $_[42]);
 		if (!$opc1) {
 			# opc1 no es ANEP
 			$self->{clasificacion}{'opc1 no es ANEP'}++;
 			next;
 		}
 
-		my $deft = new opcion($_[41], $_[42], $_[43], $_[44], $_[45]);
-		my $opc2 = new opcion($_[47], $_[48], $_[49], $_[51], $_[52], $_[50], $_[53], $_[54]);
-		my $opc3 = new opcion($_[55], $_[56], $_[57], $_[58], $_[59], $_[60], $_[61], $_[62]);
+		my $deft = new opcion($_[44], $_[45], $_[46], $_[47], $_[48]);
+		my $opc2 = new opcion($_[50], $_[51], $_[52], $_[54], $_[55], $_[53], $_[56], $_[57]);
+		my $opc3 = new opcion($_[58], $_[59], $_[60], $_[61], $_[62], $_[63], $_[64], $_[65]);
 		my $ci = $_[18];
 
     if (defined($self->{derivados_a_ces}{$ci})) {
 
       # El alumno Alexander Silveira fue derivado por CETP y no tiene opción deft
-      if ($ci eq '54332499') {
-        $deft = new opcion('DELTA EL TIGRE','Liceo','San José','1216614','1614');
-      }
+#      if ($ci eq '54332499') {
+#        $deft = new opcion('DELTA EL TIGRE','Liceo','San José','1216614','1614');
+#      }
       # El alumno Alan Mora fue derivado por CETP y no tiene opción deft
-      if ($ci eq '56214689') {
-        $deft = new opcion('PLAYA PASCUAL','Liceo','San José','1216010','1610');
-      }
+#      if ($ci eq '56214689') {
+#        $deft = new opcion('PLAYA PASCUAL','Liceo','San José','1216010','1610');
+#      }
       # El alumno Alexander González fue derivado por CETP y no tiene opción deft
-      if ($ci eq '56312122') {
-        $deft = new opcion('LIBERTAD','Liceo','San José','1216002','1602');
-      }
+#      if ($ci eq '56312122') {
+#        $deft = new opcion('LIBERTAD','Liceo','San José','1216002','1602');
+#      }
 
       if ($opc2 && $opc2->consejo eq 'Liceo') {
         $opc1 = $opc2;
@@ -199,21 +199,21 @@ sub load_alumnos {
         print "ATENCIÓN: El alumno $ci tiene discapacidad auditiva y no es de Montevideo o Salto\n";
       } else {
         # Le agrego -49 al dependid
-        $opc1 = new opcion($_[32], $_[33], $_[34], $_[35], $_[36]."-49", $_[37], $_[38], $_[39]);
+        $opc1 = $opc1->cambio_plan("49");
       }
 		}
 
 		# El liceo 1801 quedó en la oferta por error, ignoro esas opciones:
-		if (defined($opc1) && $opc1->dependid eq '1801') {
-			# Cintia Trindade y otros eligieron el liceo 1801 por error. Los cambio al 1807
-			$opc1 = new opcion('TACUAREMBO Nº 3','Liceo','Tacuarembó','1218007','1807');
-		}
-		if (defined($opc2) && $opc2->dependid eq '1801') {
-			$opc2 = undef;
-		}
-		if (defined($opc3) && $opc3->dependid eq '1801') {
-			$opc3 = undef;
-		}
+#		if (defined($opc1) && $opc1->dependid eq '1801') {
+#			# Cintia Trindade y otros eligieron el liceo 1801 por error. Los cambio al 1807
+#			$opc1 = new opcion('TACUAREMBO Nº 3','Liceo','Tacuarembó','1218007','1807');
+#		}
+#		if (defined($opc2) && $opc2->dependid eq '1801') {
+#			$opc2 = undef;
+#		}
+#		if (defined($opc3) && $opc3->dependid eq '1801') {
+#			$opc3 = undef;
+#		}
 
 		# La escuela 338 quedó predeterminada al liceo 45 pero va al 49
 #		if ($_[0] eq 'MONTEVIDEO' && $_[3] eq '338') {
@@ -226,20 +226,24 @@ sub load_alumnos {
 
 		if ($::debug > 1) {
 			print "doc : ".$_[18]."\n";
-			print "prei: ".$_[23]."\n";
-			print "opc1: $_[32], $_[33], $_[34], $_[35], $_[36]\n";
-			print "deft: $_[41], $_[42], $_[43], $_[44], $_[45]\n";
-			print "opc2: $_[47], $_[48], $_[49], $_[51], $_[52]\n";
-			print "opc3: $_[55], $_[56], $_[57], $_[58], $_[59]\n";
-			print "fa15: ".$_[63]."\n";
-			print "fa16: ".$_[64]."\n";
-			print "fa17: ".$_[65]."\n";
-			print "nota: ".$_[66]."\n";
-			print "af  : ".$_[67]."\n";
-			print "afam: ".$_[68]."\n";
-			print "tus : ".$_[69]."\n";
-			print "tus2: ".$_[70]."\n";
+			print "prei: ".$_[26]."\n";
+			print "opc1: $_[35], $_[36], $_[37], $_[38], $_[39]\n";
+			print "deft: $_[44], $_[45], $_[46], $_[47], $_[48]\n";
+			print "opc2: $_[50], $_[51], $_[52], $_[54], $_[55]\n";
+			print "opc3: $_[58], $_[59], $_[60], $_[61], $_[62]\n";
+			print "fa16: ".$_[76]."\n";
+			print "fa17: ".$_[77]."\n";
+			print "fa18: ".$_[78]."\n";
+			print "nota: ".$_[79]."\n";
+			print "af  : ".$_[80]."\n";
+			print "afam: ".$_[81]."\n";
+			print "tus : ".$_[82]."\n";
+			print "tus2: ".$_[83]."\n";
 		}
+
+    if (!defined($self->{vulnerabilidad}{$ci})) {
+      $self->{vulnerabilidad}{$ci} = $_[96];
+    }
 
     my $vulnerabilidad = $_[6] eq "ESPECIAL" ? 99 : $self->{vulnerabilidad}{$ci};
 		if (!defined($vulnerabilidad)) {

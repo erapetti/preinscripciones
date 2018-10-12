@@ -26,12 +26,12 @@ sub load_reserva {
     next if (/^#/);
 		s/"//g;
 		chop();
-		@_ = split('\t');
+		@_ = split(',');
 
     ($::soloCES) and next if ($_[0] =~ /-.*-/); # es CETP
 
     if (!defined($self->{cupos}{$_[0]})) {
-      next if ($_[4] eq '0');
+      next if ($_[3] eq '0');
       print "ERROR: load_reserva: No existe el cupo para el centro $_[0] que tiene reserva definida\n";
       exit(1);
     }
@@ -39,7 +39,7 @@ sub load_reserva {
       print "ERROR: load_reserva: Centro $_[0] repetido en $filename\n";
       exit(1);
     }
-    $self->{cupos}{$_[0]}{reserva} = $_[4];
+    $self->{cupos}{$_[0]}{reserva} = $_[3];
     $self->{cupos}{$_[0]}{total} = $self->{cupos}{$_[0]}{cupo} - $self->{cupos}{$_[0]}{reserva};
     if ($self->{cupos}{$_[0]}{total} < 0) {
       print "ATENCIÓN: load_reserva: El centro $_[0] ya empieza con ".$self->{cupos}{$_[0]}{total}." lugares libres porque tiene cupo para ".$self->{cupos}{$_[0]}{cupo}." y los lugares reservados son ".$self->{cupos}{$_[0]}{reserva}."\n";
@@ -60,24 +60,24 @@ sub load_cupos {
 	while(<CUPOS>) {
     next if (/^#/);
     next if (/^\s*$/);
-    if (/,/) {
-      print "load_cupos: Se encontraron comas en el archivo $filename y las cifras decimales hay que separarlas por puntos\n";
-      exit(1);
-    }
+    #if (/,/) {
+    #  print "load_cupos: Se encontraron comas en el archivo $filename y las cifras decimales hay que separarlas por puntos\n";
+    #  exit(1);
+    #}
 		s/"//g;
 		chop();
-		@_ = split('\t');
+		@_ = split(',');
 
     ($::soloCES) and next if ($_[0] =~ /-.*-/); # es CETP
 
     if (!defined($self->{cupos}{$_[0]})) {
       # primera vez que aparece este centro en el archivo
-      $self->{cupos}{$_[0]} = {apg=>$_[1], grupos=>$_[2], cupo=>$_[1]*$_[2], reserva=>0, total=>$_[1]*$_[2]};
+      $self->{cupos}{$_[0]} = {apg=>$_[2], grupos=>$_[3], cupo=>$_[2]*$_[3], reserva=>0, total=>$_[2]*$_[3]};
       $self->{alumnos}{$_[0]} = {};
     } elsif ($_[2] > 0) {
       # acumulo los valores con lo que ya tenía
-      $self->{cupos}{$_[0]}{grupos} += $_[2];
-      $self->{cupos}{$_[0]}{cupo} += $_[1]*$_[2];
+      $self->{cupos}{$_[0]}{grupos} += $self->{cupos}{$_[0]}{grupos};
+      $self->{cupos}{$_[0]}{cupo} += $self->{cupos}{$_[0]}{cupo};
       $self->{cupos}{$_[0]}{apg} = $self->{cupos}{$_[0]}{cupo} / $self->{cupos}{$_[0]}{grupos};
       $self->{cupos}{$_[0]}{reserva} = 0; # nop
       $self->{cupos}{$_[0]}{total}  = $self->{cupos}{$_[0]}{cupo} - 0;
@@ -127,7 +127,7 @@ sub reserva {
     print "ERROR:cupos: No está definido el cupo para el centro $dependid\n";
     exit(1);
   }
-  return $self->{cupos}{$dependid}{reserva};
+  return $self->{cupos}{$dependid}{reserva}+0;
 }
 
 sub apg {
@@ -234,8 +234,10 @@ sub evaluar {
       return -1;
     } else {
       if ($self->{cupos}{$dependid}{grupos} == 0) {
-        print "ERROR:evaluar: El centro $dependid no tiene grupos\n";
-        exit(1);
+        # El centro no tiene grupos habilitados
+        return -1;
+        #print "ERROR:evaluar: El centro $dependid no tiene grupos\n";
+        #exit(1);
       }
       my $apg = (keys %{$self->{alumnos}{$dependid}}) / $self->{cupos}{$dependid}{grupos};
       $puntaje += ($apg - $self->{cupos}{$dependid}{apg}) ** 2;
@@ -248,6 +250,8 @@ sub evaluar {
 sub depto {
   my $self = shift;
   my ($dependid) = @_;
+
+  $dependid =~ s/-.*//;
 
   if (!defined($self->{depto}{$dependid})) {
     print "ERROR: nrodepto: no se encuentra el departamento del centro $dependid\n";
@@ -267,6 +271,8 @@ sub depto {
 sub nrodepto {
   my $self = shift;
 	my ($dependid) = @_;
+
+  $dependid =~ s/-.*//;
 
   if (!defined($self->{depto}{$dependid})) {
     print "ERROR: nrodepto: no se encuentra el departamento del centro $dependid\n";
