@@ -56,38 +56,38 @@ sub load_cupos {
 
   $self->{cupos} = {};
 
-	open(CUPOS,"<:utf8",$filename);
-	while(<CUPOS>) {
-    next if (/^#/);
-    next if (/^\s*$/);
-    #if (/,/) {
-    #  print "load_cupos: Se encontraron comas en el archivo $filename y las cifras decimales hay que separarlas por puntos\n";
-    #  exit(1);
-    #}
-		s/"//g;
-		chop();
-		@_ = split(',');
+  open(CUPOS,"<:utf8",$filename);
+  while(<CUPOS>) {
+	next if (/^#/);
+	next if (/^\s*$/);
+	#if (/,/) {
+	#  print "load_cupos: Se encontraron comas en el archivo $filename y las cifras decimales hay que separarlas por puntos\n";
+	#  exit(1);
+	#}
+	s/"//g;
+	chop();
+	@_ = split(',');
 
-    ($::soloCES) and next if ($_[0] =~ /-.*-/); # es CETP
+	($::soloCES) and next if ($_[0] =~ /-.*-/); # es CETP
 
-    if (!defined($self->{cupos}{$_[0]})) {
-      # primera vez que aparece este centro en el archivo
-      $self->{cupos}{$_[0]} = {apg=>$_[2], grupos=>$_[3], cupo=>$_[2]*$_[3], reserva=>0, total=>$_[2]*$_[3]};
-      $self->{alumnos}{$_[0]} = {};
-    } elsif ($_[2] > 0) {
-      # acumulo los valores con lo que ya tenía
-      $self->{cupos}{$_[0]}{grupos} += $self->{cupos}{$_[0]}{grupos};
-      $self->{cupos}{$_[0]}{cupo} += $self->{cupos}{$_[0]}{cupo};
-      $self->{cupos}{$_[0]}{apg} = $self->{cupos}{$_[0]}{cupo} / $self->{cupos}{$_[0]}{grupos};
-      $self->{cupos}{$_[0]}{reserva} = 0; # nop
-      $self->{cupos}{$_[0]}{total}  = $self->{cupos}{$_[0]}{cupo} - 0;
-    }
+	if (!defined($self->{cupos}{$_[0]})) {
+		# primera vez que aparece este centro en el archivo
+		$self->{cupos}{$_[0]} = {apg=>$_[2], grupos=>$_[3], cupo=>$_[2]*$_[3], reserva=>0, total=>$_[2]*$_[3]};
+		$self->{alumnos}{$_[0]} = {};
+	} elsif ($_[2] > 0) {
+		# acumulo los valores con lo que ya tenía
+		$self->{cupos}{$_[0]}{grupos} += $self->{cupos}{$_[0]}{grupos};
+		$self->{cupos}{$_[0]}{cupo} += $self->{cupos}{$_[0]}{cupo};
+		$self->{cupos}{$_[0]}{apg} = $self->{cupos}{$_[0]}{cupo} / $self->{cupos}{$_[0]}{grupos};
+		$self->{cupos}{$_[0]}{reserva} = 0; # nop
+		$self->{cupos}{$_[0]}{total}  = $self->{cupos}{$_[0]}{cupo} - 0;
 	}
-	close(CUPOS);
+  }
+  close(CUPOS);
 
   # redondeo los decimales
   foreach $_ (keys %{$self->{cupos}}) {
-    $self->{cupos}{$_}{cupo} = int($self->{cupos}{$_}{cupo});
+  	$self->{cupos}{$_}{cupo} = int($self->{cupos}{$_}{cupo});
   }
 }
 
@@ -106,6 +106,29 @@ sub load_depto {
     $self->{depto}{$_[0]} = $_[1];
   }
   close(DEPTO);
+}
+
+sub load_criticos {
+  my $self = shift;
+  my ($filename) = @_;
+
+  $self->{criticos} = [];
+
+  open(CRITICOS,"<:utf8",$filename);
+  while(<CRITICOS>) {
+    next if (/^#/);
+    chop();
+    @_ = split('\t');
+
+    push @{$self->{criticos}}, $_[0];
+  }
+  close(CRITICOS);
+}
+
+sub criticos {
+  my $self = shift;
+
+  return @{$self->{criticos}};
 }
 
 sub cupos {
@@ -175,8 +198,8 @@ sub libres {
   }
   if (!defined($self->{cupos}{$dependid})) {
     print "ERROR:libres: No está definido el cupo para el centro $dependid\n";
-$self->{cupos}{$dependid} = {apg=>30, grupos=>100, cupo=>3000, reserva=>0, total=>3000};
-$self->{alumnos}{$dependid} = {};
+    $self->{cupos}{$dependid} = {apg=>30, grupos=>100, cupo=>3000, reserva=>0, total=>3000};
+    $self->{alumnos}{$dependid} = {};
     #exit(1);
   }
   return int($self->{cupos}{$dependid}{total}) - (keys %{$self->{alumnos}{$dependid}});
@@ -184,25 +207,27 @@ $self->{alumnos}{$dependid} = {};
 
 sub asignar {
   my $self = shift;
-  my ($ci,$dependid) = @_;
+  my ($ci,$dependid,$alumno) = @_;
 
   if (!defined($self->{cupos}{$dependid})) {
     print "ERROR:asignar: No puedo asignar $ci a $dependid porque no tiene cupo definido\n";
     exit(1);
   }
-  $self->{alumnos}{$dependid}{$ci} = 1;
+  $self->{alumnos}{$dependid}{$ci} = $alumno;
 }
 
 sub mover {
   my $self = shift;
   my ($ci,$dependid_origen,$dependid_destino) = @_;
 
+  return if ($dependid_origen eq $dependid_destino);
+  
   if (!defined($self->{alumnos}{$dependid_origen}{$ci})) {
     print "ERROR: No puedo mover $ci desde $dependid_origen porque no está asignado a ese centro\n";
     exit(1);
   }
+  $self->asignar($ci, $dependid_destino, $self->{alumnos}{$dependid_origen}{$ci} );
   delete $self->{alumnos}{$dependid_origen}{$ci};
-  $self->asignar($ci,$dependid_destino);
 }
 
 sub centros {
@@ -215,11 +240,8 @@ sub sobrecupos {
 	my @sobrecupos;
 
 	foreach my $dependid (sort {$self->libres($a) <=> $self->libres($b)} $self->centros) {
-		if ($self->libres($dependid) < 0) {
-			push @sobrecupos, $dependid;
-		} else {
-      last;
-    }
+		last unless ($self->libres($dependid) < 0);
+		push @sobrecupos, $dependid;
 	}
 	return @sobrecupos;
 }
@@ -297,6 +319,21 @@ sub depend2number {
 	(defined($1)) || print "ERROR: formato incorrecto: $dependid\n";
 
 	return sprintf "%02d%05d%05d%05d%05d",$self->nrodepto($dependid),$1,(defined($2) ? $2 : 0),(defined($3) ? $3 : 0),(defined($4) ? $4 : 0);
+}
+
+sub tag {
+  my $self = shift;
+  my ($dependid,$tag) = @_;
+  my $cant = 0;
+
+  if (!defined($self->{alumnos}{$dependid})) {
+    return undef;
+  }
+
+  foreach my $ci (keys %{$self->{alumnos}{$dependid}}) {
+    $cant+= $self->{alumnos}{$dependid}{$ci}->tag() eq $tag;
+  }
+  return $cant;
 }
 
 1;

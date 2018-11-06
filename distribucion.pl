@@ -47,8 +47,9 @@ my $alumnos = new alumnos;
 $alumnos->load_derivados_a_ces("derivados_a_ces.csv");
 $alumnos->load_derivados_a_cetp("derivados_a_cetp.csv");
 #$alumnos->load_vulnerabilidad("vulnerabilidad.csv");
-$alumnos->load_alumnos("preins2019v2.csv");
-$alumnos->load_alumnos("especiales.csv");
+$alumnos->load_alumnos("preins2019v3.csv");
+$alumnos->load_alumnos("especialesv2.csv",99);
+$alumnos->load_alumnos("noformalv2.csv",99);
 $alumnos->verifico();
 
 my $ci;
@@ -58,7 +59,7 @@ my %solucion;
 # Asigno a todos la primer opción:
 foreach $ci ($alumnos->alumnos) {
 		$alumnos->asignar($ci,0);
-		$centros->asignar($ci, $alumnos->opcion($ci,0)->dependid);
+		$centros->asignar($ci, $alumnos->opcion($ci,0)->dependid, $alumnos->alumno($ci));
 }
 %{$solucion{destino}} = %{$alumnos->{destino}};
 $solucion{puntaje} = $centros->evaluar;
@@ -175,7 +176,7 @@ sub puedomover($$$$) {
 	return 0 if ($destino->consejo eq 'Liceo' && $alumnos->vulnerable($ci)); # es vulnerable y está en un liceo
 
 	my $predeterminada = $alumnos->predeterminada($ci);
-	return 0 if (defined($predeterminada) && $predeterminada->dependid == $destino->dependid); # no lo muevo si ya está en el centro predeterminado
+	return 0 if (defined($predeterminada) && $predeterminada->dependid eq $destino->dependid); # no lo muevo si ya está en el centro predeterminado
 
 	my $opcion = $alumnos->opcion($ci,$opc);
 	return 0 if (!defined($opcion)); # no tiene la opcion opc
@@ -193,7 +194,7 @@ sub liberar($$$$$) {
 
 	($::debug > 1) && print "Preciso liberar $sobrecupo lugares de $dependid\n";
 	my %puedomover;
-	foreach my $ci ($alumnos->alumnos) {
+	foreach my $ci (keys %{$centros->alumnos($dependid)}) {
 		next if (!puedomover($ci,$opc,$dependid,$alumnos));
 
 		$puedomover{$ci} = 1;
@@ -269,7 +270,7 @@ sub descripcion_distribucion($$$) {
 	printf "\tAlumnos en su tercer opción:  %d\n",($opcion{2}+0);
 	printf "\tAlumnos en su opción predet:  %d\n",($opcion{3}+0);
 	print "\n";
-	print "\tAlumnos que quedaron en una opción igual a la predeterminada: $predeterminados de $enCES en CES = ".sprintf("%.2f %%",$predeterminados*100/$enCES)."\n";
+	($enCES) and print "\tAlumnos que quedaron en una opción igual a la predeterminada: $predeterminados de $enCES en CES = ".sprintf("%.2f %%",$predeterminados*100/$enCES)."\n";
 	printf "\tSatisfacción general: %.2f %%\n",(($opcion{0}+$opcion{1}/2+$opcion{2}/4)*100/($opcion{0}+$opcion{1}+$opcion{2}+$opcion{3}));
 	print "\n\n";
 
@@ -282,23 +283,30 @@ sub descripcion_distribucion($$$) {
 	print "\n\n";
 
 	# Tabla que describe la solución por centro
-	printf "%15.15s %3.3s %20.20s %10.10s %10.10s %10.10s %10.10s %10.10s\n", "Departamento","#","Centro","Grupos","Lugares","Alumnos","Reserva","Saldo";
+	open(RESUMEN,">resumen.csv");
+	printf "%15.15s %3.3s %20.20s %10.10s %10.10s %10.10s %10.10s %10.10s %10.10s %10.10s\n", "Departamento","#","Centro","Grupos","Lugares","CEIP","Especiales","NoFormal","Reserva","Saldo";
+	printf RESUMEN "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n", "Departamento","#","Centro","Grupos","Lugares","CEIP","Especiales","NoFormal","Reserva","Saldo";
 	foreach my $dependid (sort {$centros->depend2number($a) <=> $centros->depend2number($b)} $centros->centros) {
 		($::soloCES) and next if ($dependid =~ /-.*-/);
 
-		printf "%15.15s %3.3s %20.20s %10.10s %10d %10.10s %10d %10d\n",$centros->depto($dependid),$nrosolucion,$dependid,$centros->grupos($dependid),$centros->cupos($dependid),scalar(keys %{$centros->alumnos($dependid)}),$centros->reserva($dependid),$centros->libres($dependid);
+		printf "%15.15s %3d %20.20s %10d %10d %10d %10d %10d %10d %10d\n",$centros->depto($dependid),$nrosolucion,$dependid,$centros->grupos($dependid),$centros->cupos($dependid),$centros->tag($dependid,"pre"),$centros->tag($dependid,"esp"),$centros->tag($dependid,"nof"),$centros->reserva($dependid),$centros->libres($dependid);
+		printf RESUMEN "%s,%d,%s,%d,%d,%d,%d,%d,%d,%d\n",$centros->depto($dependid),$nrosolucion,$dependid,$centros->grupos($dependid),$centros->cupos($dependid),$centros->tag($dependid,"pre"),$centros->tag($dependid,"esp"),$centros->tag($dependid,"nof"),$centros->reserva($dependid),$centros->libres($dependid);
 	}
 	print "\n";
+	close(RESUMEN);
 
 	if ($::mostrar_solucion) {
 		# Reporto alumnos para cada centro lleno:
 		open(SALIDA,">paraCETP.csv");
-		printf SALIDA "%s,%s\n", "DependId","Cédula";
+		printf SALIDA "%s,%s,%s,%s\n", "Dependid","Documento","Tipo","País";
 		foreach my $dependid_llena (sort {$centros->libres($a) <=> $centros->libres($a)} $centros->sobrecupos) {
 			foreach my $ci ($alumnos->alumnos) {
 				my $dependid = $alumnos->destino($ci)->dependid;
 				next if ($dependid_llena ne $dependid);
-				printf SALIDA "%s,%s\n", $dependid, $ci;
+				my $opc2 = $alumnos->opcion($ci,1);
+				my $opc3 = $alumnos->opcion($ci,2);
+				#next unless ($opc2 && $opc2->consejo eq 'UTU' || $opc3 && $opc3->consejo eq 'UTU');
+				printf SALIDA "%s,%s,%s,%s\n", $alumnos->destino($ci)->dependid,$ci,$alumnos->tipodoc($ci),$alumnos->paisdoc($ci);
 			}
 		}
 		close(SALIDA);
@@ -309,6 +317,20 @@ sub descripcion_distribucion($$$) {
 sub mejora($) {
 	my ($alumnos) = @_;
 	my $cambios = 0;
+
+	# para alumnos que tienen el mismo liceo en más de una opción me aseguro que están en la mejor de las dos
+	foreach my $ci ($alumnos->alumnos) {
+		my $opc = $alumnos->opcdestino($ci);
+
+		foreach (my $o=0; $o<$opc; $o++) {
+			next if (!defined($alumnos->opcion($ci,$o)));
+			if ($alumnos->opcion($ci,$o)->dependid eq $alumnos->destino($ci)->dependid) {
+				$alumnos->asignar($ci, $o);
+				$cambios++;
+				($::debug) and print "MEJORA INDIVIDUAL: $ci pasa de opción $opc a opción $o manteniendo el liceo\n";
+			}
+		}
+	}
 
 	foreach my $opc (3,2,1) {
 		print "Considero mejoras de alumnos en opc $opc\n";
@@ -327,11 +349,12 @@ sub mejora($) {
 					for (my $otro_opc=0; $otro_opc<$alumnos->opcdestino($otro_ci); $otro_opc++) {
 						next if (!defined($alumnos->opcion($otro_ci,$otro_opc)));
 						next if ($alumnos->opcion($otro_ci,$otro_opc)->dependid ne $liceo);
-
 						($::debug) and print "MEJORA: intercambio alumnos:\n";
 						($::debug) and print "\t$ci (que pasa de centro ".$alumnos->destino($ci)->dependid." en opc ".$alumnos->opcdestino($ci)." a ".$alumnos->opcion($ci, $o)->dependid." en opc ".$o.")\n";
 						($::debug) and print "\t$otro_ci (que pasa de centro ".$alumnos->destino($otro_ci)->dependid." en opc ".$alumnos->opcdestino($otro_ci)." a ".$alumnos->opcion($otro_ci, $otro_opc)->dependid." en opc $otro_opc)\n";
+						$centros->mover($otro_ci, $alumnos->destino($otro_ci)->dependid, $alumnos->opcion($otro_ci,$otro_opc)->dependid);
 						$alumnos->asignar($otro_ci, $otro_opc);
+						$centros->mover($ci, $alumnos->destino($ci)->dependid, $alumnos->opcion($ci,$o)->dependid);
 						$alumnos->asignar($ci, $o);
 						$cambios += 2;
 						$encontre = 1;
@@ -367,10 +390,10 @@ sub salvar($$) {
 	my ($filename,$alumnos) = @_;
 
 	open(SALIDA,">:utf8","$filename") || die "No se puede abrir $filename: $!";
-	printf SALIDA "%s,%s\n", "Cédula","Dependid";
+	printf SALIDA "%s,%s,%s,%s\n", "Documento","Tipo","País","Dependid";
 	foreach my $ci ($alumnos->alumnos) {
 		if ($alumnos->destino($ci)->consejo eq 'Liceo') {
-			printf SALIDA "%s,%s\n", $ci,$alumnos->destino($ci)->dependid;
+			printf SALIDA "\"%s\",\"%s\",\"%s\",%s\n", $ci,$alumnos->tipodoc($ci),$alumnos->paisdoc($ci),$alumnos->destino($ci)->dependid;
 		}
 	}
 	close(SALIDA);
