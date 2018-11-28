@@ -66,7 +66,7 @@ sub cambio_plan($) {
   my $self = shift;
   my ($plan) = @_;
 
-  $self->{dependid} =~ s/-.*//; # saco el plan anterior
+  $self->{dependid} =~ s/-[^-]*$//; # saco el plan anterior
   $self->{dependid} = $self->{dependid}."-".$plan;
 }
 
